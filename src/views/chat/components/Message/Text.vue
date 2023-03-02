@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { encodeHTML } from '@/utils/format'
 
 interface Props {
   inversion?: boolean
@@ -15,8 +16,23 @@ const props = defineProps<Props>()
 
 const { isMobile } = useBasicLayout()
 
+const renderer = new marked.Renderer()
+
+const textRef = ref<HTMLElement>()
+
+renderer.html = (html) => {
+  return `<p>${encodeHTML(html)}</p>`
+}
+
+renderer.code = (code, language) => {
+  const validLang = !!(language && hljs.getLanguage(language))
+  if (validLang)
+    return `<pre><code class="hljs ${language}">${hljs.highlight(language, code).value}</code></pre>`
+  return `<pre style="background: none">${hljs.highlightAuto(code).value}</pre>`
+}
+
 marked.setOptions({
-  renderer: new marked.Renderer(),
+  renderer,
   highlight(code) {
     return hljs.highlightAuto(code).value
   },
@@ -35,10 +51,13 @@ const wrapClass = computed(() => {
 })
 
 const text = computed(() => {
-  if (props.text && !props.inversion)
-    return marked(props.text)
-  return props.text
+  const value = props.text ?? ''
+  if (!props.inversion)
+    return marked(value)
+  return value
 })
+
+defineExpose({ textRef })
 </script>
 
 <template>
@@ -47,9 +66,9 @@ const text = computed(() => {
       <span class="dark:text-white w-[4px] h-[20px] block animate-blink" />
     </template>
     <template v-else>
-      <div class="leading-relaxed break-all">
+      <div ref="textRef" class="leading-relaxed break-all">
         <div v-if="!inversion" class="markdown-body" v-html="text" />
-        <div v-else v-text="text" />
+        <div v-else class="whitespace-pre-wrap" v-text="text" />
       </div>
     </template>
   </div>
